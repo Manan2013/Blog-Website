@@ -5,7 +5,7 @@ const User = require("./models/user");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
-const post = require("./models/post");
+const Post = require("./models/post");
 const multer = require("multer");
 const fs = require("fs");
 const uploadMiddleware = multer({dest: "uploads/"});
@@ -18,6 +18,7 @@ var secret = "akdsjfhbrghrubfyhsubusfbsugbfsk";
 app.use(cors({credentials: true,origin: "http://localhost:3000"}));
 app.use(express.json());
 app.use(cookieParser());
+app.use("/uploads", express.static(__dirname + "/uploads"));
 
 mongoose.connect("mongodb+srv://itsmanan13:klgd2hLvCTkmPHgE@cluster0.upcefo2.mongodb.net/");
 
@@ -71,15 +72,39 @@ app.post("/post", uploadMiddleware.single("file"), async (req,res) => {
     const newPath = path + "." + ext;
     fs.renameSync(path, newPath);
 
-    const {title,summary,content} = req.body;
-    const postDoc = await post.create({
-        title,
-        summary,
-        content,
-        cover:newPath
-    });
-    res.json(postDoc);
+    const {token} = req.cookies;
+    jwt.verify(token, secret, {}, async (err,info) => {
+        if (err) throw err;
+        const {title,summary,content} = req.body;
+        const postDoc = await Post.create({
+            title,
+            summary,
+            content,
+            cover:newPath,
+            author: info.id,
+        });
+        res.json(postDoc);
+    })
+
+    
 });
+
+app.get("/post", async (req,res) => {
+    // const posts = await Post.find()
+    // // res.json(posts);
+    res.json(
+        await Post.find()
+            .populate('author',['username'])
+            .sort({createdAt:-1})
+            .limit(20)
+    );
+})
+
+app.get("/post/:id", async (req,res) => {
+    const {id} = req.params;
+    const postDoc = await Post.findById(id).populate("author",["username"]);
+    res.send(postDoc);
+})
 
 app.listen(4000);
 // mongodb+srv://itsmanan13:klgd2hLvCTkmPHgE@cluster0.upcefo2.mongodb.net/
